@@ -76,6 +76,7 @@ class Player(AbstractPlayer):
         is a number starting at '00' for the first time that player ID has been
         used and increments by 1 for every successive player.
     """
+
     def __init__(self, player_id):
         self._most_recent_season = ''
         self._index = None
@@ -217,7 +218,7 @@ class Player(AbstractPlayer):
         """
         # The first letter of the player's last name is used to sort the player
         # list and is a part of the URL.
-        first_character = self._player_id[0]
+        first_character = self._player_id[0].upper()
         return PLAYER_URL % (first_character, self._player_id)
 
     def _retrieve_html_page(self):
@@ -238,7 +239,7 @@ class Player(AbstractPlayer):
         url = self._build_url()
         try:
             url_data = pq(url)
-        except (HTTPError, ParserError):
+        except HTTPError:
             return None
         # For NFL, a 404 page doesn't actually raise a 404 error, so it needs
         # to be manually checked.
@@ -663,8 +664,6 @@ class Player(AbstractPlayer):
         """
         Returns an ``int`` of the player's weight in pounds.
         """
-        if not self._weight:
-            return None
         return int(self._weight.replace('lb', ''))
 
     @property
@@ -1492,6 +1491,7 @@ class Roster:
         respective stats which greatly reduces the time to return a response if
         just the names and IDs are desired. Defaults to False.
     """
+
     def __init__(self, team, year=None, slim=False):
         self._team = team
         self._slim = slim

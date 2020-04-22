@@ -78,7 +78,6 @@ SCHEDULE_SCHEME = {
 BOXSCORE_SCHEME = {
     'game_info': 'div[class="scorebox_meta"]:first',
     'home_name': 'a[itemprop="name"]:first',
-    'summary': 'table[class="linescore nohover stats_table no_freeze"]:first',
     'away_name': 'a[itemprop="name"]:last',
     'away_points': 'div[class="scorebox"] div[class="score"]',
     'away_first_downs': 'td[data-stat="vis_stat"]',
@@ -367,9 +366,3 @@ WILD_CARD = 100
 DIVISION = 101
 CONF_CHAMPIONSHIP = 102
 SUPER_BOWL = 103
-
-LOST_WILD_CARD = 'Lost WC'
-LOST_DIVISIONAL = 'Lost Divisional'
-LOST_CONF_CHAMPS = 'Lost Conference Championship'
-LOST_SUPER_BOWL = 'Lost Super Bowl'
-WON_SUPER_BOWL = 'Won Super Bowl'

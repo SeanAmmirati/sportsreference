@@ -1,6 +1,6 @@
 import pandas as pd
 import re
-from datetime import datetime
+from datetime import timedelta
 from pyquery import PyQuery as pq
 from urllib.error import HTTPError
 from .. import utils
@@ -15,6 +15,8 @@ from .player import (AbstractPlayer,
                      _float_property_decorator,
                      _int_property_decorator)
 from functools import wraps
+
+from .nfl_utils import _determine_leagues_from_year
 
 
 def nfl_int_property_sub_index(func):
@@ -75,6 +77,7 @@ class BoxscorePlayer(AbstractPlayer):
         page. If the player appears in multiple tables, all of their
         information will appear in one single string concatenated together.
     """
+
     def __init__(self, player_id, player_name, player_data):
         self._index = 0
         self._yards_lost_from_sacks = None
@@ -223,6 +226,7 @@ class Boxscore:
         The relative link to the boxscore HTML page, such as
         '201802040nwe'.
     """
+
     def __init__(self, uri):
         self._uri = uri
         self._date = None
@@ -237,7 +241,6 @@ class Boxscore:
         self._winning_abbr = None
         self._losing_name = None
         self._losing_abbr = None
-        self._summary = None
         self._away_points = None
         self._away_first_downs = None
         self._away_rush_attempts = None
@@ -382,51 +385,6 @@ class Boxscore:
         """
         scheme = BOXSCORE_SCHEME[field]
         return pq(str(boxscore(scheme)).strip())
-
-    def _parse_summary(self, boxscore):
-        """
-        Find the game summary including score in each quarter.
-
-        The game summary provides further information on the points scored
-        during each quarter, including the final score and any overtimes if
-        applicable. The final output will be in a dictionary with two keys,
-        'away' and 'home'. The value of each key will be a list for each
-        respective team's score by order of the quarter, with the first element
-        belonging to the first quarter, similar to the following:
-
-        {
-            'away': [0, 7, 3, 14],
-            'home': [7, 7, 3, 0]
-        }
-
-        Parameters
-        ----------
-        boxscore : PyQuery object
-            A PyQuery object containing all of the HTML from the boxscore.
-
-        Returns
-        -------
-        dict
-            Returns a ``dictionary`` representing the score for each team in
-            each quarter of the game.
-        """
-        team = ['away', 'home']
-        summary = {'away': [], 'home': []}
-        game_summary = boxscore(BOXSCORE_SCHEME['summary'])
-        for ind, team_info in enumerate(game_summary('tbody tr').items()):
-            # Only pull the first N-1 items as the last element is the final
-            # score for each team which is already stored in an attribute, and
-            # shouldn't be duplicated.
-            for quarter in list(team_info('td[class="center"]').items())[:-1]:
-                # The first element contains the logo and name of the teams,
-                # but not any score information, and should be skipped.
-                if quarter('div'):
-                    continue
-                try:
-                    summary[team[ind]].append(int(quarter.text()))
-                except ValueError:
-                    summary[team[ind]].append(None)
-        return summary
 
     def _find_boxscore_tables(self, boxscore):
         """
@@ -680,10 +638,6 @@ class Boxscore:
                 value = self._parse_name(short_field, boxscore)
                 setattr(self, field, value)
                 continue
-            if short_field == 'summary':
-                value = self._parse_summary(boxscore)
-                setattr(self, field, value)
-                continue
             index = 0
             if short_field in BOXSCORE_ELEMENT_INDEX.keys():
                 index = BOXSCORE_ELEMENT_INDEX[short_field]
@@ -732,7 +686,6 @@ class Boxscore:
             'away_yards_from_penalties': self.away_yards_from_penalties,
             'away_yards_lost_from_sacks': self.away_yards_lost_from_sacks,
             'date': self.date,
-            'datetime': self.datetime,
             'duration': self.duration,
             'home_first_downs': self.home_first_downs,
             'home_fourth_down_attempts': self.home_fourth_down_attempts,
@@ -817,19 +770,6 @@ class Boxscore:
         return self._time
 
     @property
-    def datetime(self):
-        """
-        Returns a ``datetime`` object of the date and time the game took place.
-        """
-        dt = None
-        if self._date and self._time:
-            date = '%s %s' % (self._date, self._time)
-            dt = datetime.strptime(date, '%A %b %d, %Y %I:%M%p')
-        elif self._date:
-            dt = datetime.strptime(self._date, '%A %b %d, %Y')
-        return dt
-
-    @property
     def stadium(self):
         """
         Returns a ``string`` of the name of the stadium where the game was
@@ -850,21 +790,6 @@ class Boxscore:
         Returns a ``string`` of the game's duration in the format 'H:MM'.
         """
         return self._duration
-
-    @property
-    def summary(self):
-        """
-        Returns a ``dictionary`` with two keys, 'away' and 'home'. The value of
-        each key will be a list for each respective team's score by order of
-        the quarter, with the first element belonging to the first quarter,
-        similar to the following:
-
-        {
-            'away': [0, 7, 3, 14],
-            'home': [7, 7, 3, 0]
-        }
-        """
-        return self._summary
 
     @property
     def winner(self):
@@ -1303,6 +1228,7 @@ class Boxscores:
         empty, or if 'end_week' is prior to 'week', only the games from the day
         specified in the 'date' parameter will be saved.
     """
+
     def __init__(self, week, year, end_week=None):
         self._boxscores = {}
 
@@ -1346,7 +1272,7 @@ class Boxscores:
         """
         return self._boxscores
 
-    def _create_url(self, week, year):
+    def _create_urls(self, week, year):
         """
         Build the URL based on the passed week number.
 
@@ -1366,7 +1292,17 @@ class Boxscores:
             Returns a ``string`` of the boxscore URL including the requested
             date.
         """
-        return BOXSCORES_URL % (year, week)
+        leagues = _determine_leagues_from_year(int(year))
+        urls = []
+
+        for league in leagues:
+            if league == 'NFL':
+                url = BOXSCORES_URL % (year, week)
+            else:
+                url = BOXSCORES_URL % ((f'{year}_{league}'), week)
+            urls.append(url)
+
+        return urls
 
     def _get_requested_page(self, url):
         """
@@ -1507,6 +1443,7 @@ class Boxscores:
         if len(scores) == 2:
             away_score = self._get_score(scores[0])
             home_score = self._get_score(scores[1])
+
         away_name, away_abbr = self._get_name(away)
         home_name, home_abbr = self._get_name(home)
         return (away_name, away_abbr, away_score, home_name, home_abbr,
@@ -1634,10 +1571,12 @@ class Boxscores:
         if not end_week or week > end_week:
             end_week = week
         while week <= end_week:
-            url = self._create_url(week, year)
-            page = self._get_requested_page(url)
-            games = page('table[class="teams"]').items()
-            boxscores = self._extract_game_info(games)
+            urls = self._create_urls(week, year)
+            boxscores = []
+            for url in urls:
+                page = self._get_requested_page(url)
+                games = page('table[class="teams"]').items()
+                boxscores += self._extract_game_info(games)
             timestamp = '%s-%s' % (week, year)
             self._boxscores[timestamp] = boxscores
             week += 1

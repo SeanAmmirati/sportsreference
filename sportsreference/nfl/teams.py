@@ -1,22 +1,13 @@
 import pandas as pd
 import re
-from .constants import (CONF_CHAMPIONSHIP,
-                        DIVISION,
-                        LOST_CONF_CHAMPS,
-                        LOST_DIVISIONAL,
-                        LOST_SUPER_BOWL,
-                        LOST_WILD_CARD,
-                        PARSING_SCHEME,
-                        SEASON_PAGE_URL,
-                        SUPER_BOWL,
-                        WILD_CARD,
-                        WON_SUPER_BOWL)
+from .constants import PARSING_SCHEME, SEASON_PAGE_URL
 from pyquery import PyQuery as pq
-from ..constants import LOSS, WIN
 from ..decorators import float_property_decorator, int_property_decorator
 from .. import utils
 from .roster import Roster
 from .schedule import Schedule
+
+from .nfl_utils import _generate_season_page_url, _determine_leagues_from_year
 
 
 class Team:
@@ -39,6 +30,7 @@ class Team:
     year : string (optional)
         The requested year to pull stats from.
     """
+
     def __init__(self, team_data, rank, year=None):
         self._year = year
         self._rank = rank
@@ -150,7 +142,6 @@ class Team:
             self.points_contributed_by_offense,
             'points_difference': self.points_difference,
             'points_for': self.points_for,
-            'post_season_result': self.post_season_result,
             'rank': self.rank,
             'rush_attempts': self.rush_attempts,
             'rush_first_downs': self.rush_first_downs,
@@ -238,28 +229,6 @@ class Team:
         Returns an ``int`` of the number of games played during the season.
         """
         return self._games_played
-
-    @property
-    def post_season_result(self):
-        """
-        Returns a ``string constant`` denoting how far the team made it in the
-        post-season.
-        """
-        final_game = self.schedule[-1]
-        result = final_game.result
-        if result == LOSS and final_game.week in [WILD_CARD, 18]:
-            return LOST_WILD_CARD
-        if result == LOSS and final_game.week in [DIVISION, 19]:
-            return LOST_DIVISIONAL
-        if result == LOSS and final_game.week in [CONF_CHAMPIONSHIP, 20]:
-            return LOST_CONF_CHAMPS
-        if result == LOSS and final_game.week in [SUPER_BOWL, 21]:
-            return LOST_SUPER_BOWL
-        if result == WIN and final_game.week in [SUPER_BOWL, 21]:
-            return WON_SUPER_BOWL
-        # If none of the above conditions are true, the team failed to qualify
-        # for the post-season.
-        return None
 
     @int_property_decorator
     def points_for(self):
@@ -533,6 +502,7 @@ class Teams:
     year : string (optional)
         The requested year to pull stats from.
     """
+
     def __init__(self, year=None):
         self._teams = []
 
@@ -665,15 +635,40 @@ class Teams:
             if not utils._url_exists(SEASON_PAGE_URL % year) and \
                utils._url_exists(SEASON_PAGE_URL % str(int(year) - 1)):
                 year = str(int(year) - 1)
-        doc = pq(SEASON_PAGE_URL % year)
-        teams_list = utils._get_stats_table(doc, 'div#all_team_stats')
-        afc_list = utils._get_stats_table(doc, 'table#AFC')
-        nfc_list = utils._get_stats_table(doc, 'table#NFC')
-        if not teams_list and not afc_list and not nfc_list:
+
+        leagues = _determine_leagues_from_year(int(year))
+
+        url_dict = {
+            league: {
+                'url': _generate_season_page_url(year, league),
+                'divs': ['div#all_team_stats', 'table#AFC', 'table#NFC'],
+            }
+            for league in leagues
+        }
+        # In these years, there is a seperate place for
+        if 1950 <= int(year) <= 1959:
+            url_dict['NFL']['divs'] = ['div#all_team_stats', 'table#NFL']
+        elif 1920 <= int(year) <= 1921:
+            url_dict['APFA']['divs'] = ['div#all_team_stats', 'table#APFA']
+
+        if len(leagues) == 2:
+            # Then there is another league included, change the div for this
+            other = leagues[1]
+            url_dict[other]['divs'] = [
+                'div#all_team_stats', f'table#{other}']
+
+        for league, info in url_dict.items():
+            url = info['url']
+            divs = info['divs']
+            for div in divs:
+                table = utils._get_stats_table(url, div)
+                if table is not None:
+                    team_data_dict = self._add_stats_data(
+                        table, team_data_dict)
+
+        if len(team_data_dict) == 0:
             utils._no_data_found()
             return
-        for stats_list in [teams_list, afc_list, nfc_list]:
-            team_data_dict = self._add_stats_data(stats_list, team_data_dict)
 
         for team_data in team_data_dict.values():
             team = Team(team_data['data'], team_data['rank'], year)
