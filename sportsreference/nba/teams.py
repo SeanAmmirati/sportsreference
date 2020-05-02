@@ -6,6 +6,7 @@ from ..decorators import float_property_decorator, int_property_decorator
 from .. import utils
 from .roster import Roster
 from .schedule import Schedule
+from .utils import _determine_leagues_from_year, _generate_season_page_url
 
 
 class Team:
@@ -28,6 +29,7 @@ class Team:
     year : string (optional)
         The requested year to pull stats from.
     """
+
     def __init__(self, team_data, rank, year=None):
         self._year = year
         self._rank = rank
@@ -585,6 +587,7 @@ class Teams:
     year : string (optional)
         The requested year to pull stats from.
     """
+
     def __init__(self, year=None):
         self._teams = []
 
@@ -705,25 +708,28 @@ class Teams:
             The requested year to pull stats from.
         """
         team_data_dict = {}
+        leagues = _determine_leagues_from_year(year)
 
-        if not year:
-            year = utils._find_year_for_season('nba')
-            # If stats for the requested season do not exist yet (as is the
-            # case right before a new season begins), attempt to pull the
-            # previous year's stats. If it exists, use the previous year
-            # instead.
-            if not utils._url_exists(SEASON_PAGE_URL % year) and \
-               utils._url_exists(SEASON_PAGE_URL % str(int(year) - 1)):
-                year = str(int(year) - 1)
-        doc = pq(SEASON_PAGE_URL % year)
-        teams_list = utils._get_stats_table(doc, 'div#all_team-stats-base')
-        opp_teams_list = utils._get_stats_table(doc,
-                                                'div#all_opponent-stats-base')
-        if not teams_list and not opp_teams_list:
-            utils._no_data_found()
-            return
-        for stats_list in [teams_list, opp_teams_list]:
-            team_data_dict = self._add_stats_data(stats_list, team_data_dict)
+        for league in leagues:
+            if not year:
+                year = utils._find_year_for_season('nba')
+                # If stats for the requested season do not exist yet (as is the
+                # case right before a new season begins), attempt to pull the
+                # previous year's stats. If it exists, use the previous year
+                # instead.
+                if not utils._url_exists(SEASON_PAGE_URL % year) and \
+                        utils._url_exists(SEASON_PAGE_URL % str(int(year) - 1)):
+                    year = str(int(year) - 1)
+            doc = _generate_season_page_url(year, league)
+            teams_list = utils._get_stats_table(doc, 'div#all_team-stats-base')
+            opp_teams_list = utils._get_stats_table(doc,
+                                                    'div#all_opponent-stats-base')
+            if not teams_list and not opp_teams_list:
+                utils._no_data_found()
+                return
+            for stats_list in [teams_list, opp_teams_list]:
+                team_data_dict = self._add_stats_data(
+                    stats_list, team_data_dict)
 
         for team_data in team_data_dict.values():
             team = Team(team_data['data'], team_data['rank'], year)
