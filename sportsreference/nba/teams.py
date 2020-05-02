@@ -34,9 +34,12 @@ class Team:
     year : string (optional)
         The requested year to pull stats from.
     """
-    def __init__(self, team_name=None, team_data=None, rank=None, year=None):
+
+    def __init__(self, team_name=None, team_data=None, rank=None, year=None,
+                 league=None):
         self._year = year
         self._rank = rank
+        self._league = league
         self._abbreviation = None
         self._name = None
         self._games_played = None
@@ -114,6 +117,7 @@ class Team:
         self._year = year
         team_data = team_data_dict[team_name]['data']
         self._rank = team_data_dict[team_name]['rank']
+        self._league = team_data_dict[team_name]['league']
         return team_data
 
     def _parse_team_data(self, team_data):
@@ -138,8 +142,7 @@ class Team:
         for field in self.__dict__:
             # The rank attribute is passed directly to the class during
             # instantiation.
-            if field == '_rank' or \
-               field == '_year':
+            if field in ['_rank', '_year', '_league']:
                 continue
             value = utils._parse_field(PARSING_SCHEME,
                                        team_data,
@@ -165,6 +168,7 @@ class Team:
             'free_throw_percentage': self.free_throw_percentage,
             'free_throws': self.free_throws,
             'games_played': self.games_played,
+            'league': self.league,
             'minutes_played': self.minutes_played,
             'name': self.name,
             'offensive_rebounds': self.offensive_rebounds,
@@ -251,6 +255,13 @@ class Team:
         Pistons'.
         """
         return self._name
+
+    @property
+    def league(self):
+        """Returns a ``string`` of the league that the team is in, such as
+        'NBA' or 'BAA'
+        """
+        return self._league
 
     @int_property_decorator
     def games_played(self):
@@ -622,10 +633,10 @@ class Teams:
         The requested year to pull stats from.
     """
 
-    def __init__(self, year=None):
+    def __init__(self, year=None, leagues=None):
         self._teams = []
 
-        team_data_dict, year = _retrieve_all_teams(year)
+        team_data_dict, year = _retrieve_all_teams(year, leagues=leagues)
         self._instantiate_teams(team_data_dict, year)
 
     def __getitem__(self, abbreviation):
@@ -709,7 +720,7 @@ class Teams:
         for team_data in team_data_dict.values():
             team = Team(team_data=team_data['data'],
                         rank=team_data['rank'],
-                        year=year)
+                        year=year, league=team_data['league'])
             self._teams.append(team)
 
     @property

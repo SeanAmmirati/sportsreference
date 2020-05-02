@@ -47,7 +47,7 @@ def _generate_season_page_url(year, league):
     return pq(SEASON_PAGE_URL.replace('NBA', league) % year)
 
 
-def _add_stats_data(teams_list, team_data_dict):
+def _add_stats_data(teams_list, team_data_dict, league):
     """
     Add a team's stats row to a dictionary.
 
@@ -77,12 +77,14 @@ def _add_stats_data(teams_list, team_data_dict):
         try:
             team_data_dict[abbr]['data'] += team_data
         except KeyError:
-            team_data_dict[abbr] = {'data': team_data, 'rank': rank}
+            team_data_dict[abbr] = {'data': team_data,
+                                    'rank': rank,
+                                    'league': league}
         rank += 1
     return team_data_dict
 
 
-def _retrieve_all_teams(year):
+def _retrieve_all_teams(year, leagues=None):
     """
     Find and create Team instances for all teams in the given season.
 
@@ -105,7 +107,8 @@ def _retrieve_all_teams(year):
     """
     team_data_dict = {}
 
-    leagues = _determine_leagues_from_year(year)
+    if not leagues:
+        leagues = _determine_leagues_from_year(year)
 
     for league in leagues:
         if not year:
@@ -126,5 +129,7 @@ def _retrieve_all_teams(year):
             return
         for stats_list in [teams_list, opp_teams_list]:
             team_data_dict = _add_stats_data(
-                stats_list, team_data_dict)
+                stats_list, team_data_dict, league)
+    import pdb
+    pdb.set_trace()
     return team_data_dict, year

@@ -62,7 +62,7 @@ def _generate_season_page_url(year, league):
         return pq(SEASON_PAGE_URL % (year + f'_{league}'))
 
 
-def _add_stats_data(teams_list, team_data_dict):
+def _add_stats_data(teams_list, team_data_dict, league):
     """
     Add a team's stats row to a dictionary.
 
@@ -94,12 +94,14 @@ def _add_stats_data(teams_list, team_data_dict):
         try:
             team_data_dict[abbr]['data'] += team_data
         except KeyError:
-            team_data_dict[abbr] = {'data': team_data, 'rank': rank}
+            team_data_dict[abbr] = {'data': team_data,
+                                    'rank': rank,
+                                    'league': league}
         rank += 1
     return team_data_dict
 
 
-def _retrieve_all_teams(year):
+def _retrieve_all_teams(year, leagues=None):
     """
     Find and create Team instances for all teams in the given season.
 
@@ -135,7 +137,8 @@ def _retrieve_all_teams(year):
            utils._url_exists(SEASON_PAGE_URL % str(int(year) - 1)):
             year = str(int(year) - 1)
 
-    leagues = _determine_leagues_from_year(int(year))
+    if not leagues:
+        leagues = _determine_leagues_from_year(int(year))
     for league in leagues:
         url = _generate_season_page_url(year, league)
         divs = _determine_divs_from_year_league(year, league)
@@ -144,7 +147,7 @@ def _retrieve_all_teams(year):
             table = utils._get_stats_table(url, div)
             if table is not None:
                 team_data_dict = _add_stats_data(
-                    table, team_data_dict)
+                    table, team_data_dict, league)
 
     if len(team_data_dict) == 0:
         utils._no_data_found()
