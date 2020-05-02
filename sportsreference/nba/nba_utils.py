@@ -125,6 +125,6 @@ def _retrieve_all_teams(year):
             utils._no_data_found()
             return
         for stats_list in [teams_list, opp_teams_list]:
-            team_data_dict = self._add_stats_data(
+            team_data_dict = _add_stats_data(
                 stats_list, team_data_dict)
     return team_data_dict, year

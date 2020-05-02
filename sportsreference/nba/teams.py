@@ -5,7 +5,6 @@ from .nba_utils import _retrieve_all_teams
 from .. import utils
 from .roster import Roster
 from .schedule import Schedule
-from .utils import _determine_leagues_from_year, _generate_season_page_url
 
 
 class Team:
